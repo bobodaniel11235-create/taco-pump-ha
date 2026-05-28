@@ -1,0 +1,228 @@
+# ================================================================
+# vr3452_production_v2.yaml
+# ================================================================
+# Production ESPHome config for Taco VR3452 / any 00e series pump
+# via RS-485 Modbus RTU.
+#
+# CONFIRMED from Taco 00e series manual (document 302-393):
+#   Modbus slave address default:  245 (0xF5)
+#   Baud rate default:             19200
+#   Head register resolution:      0.01 m  → convert to ft with ×0.03281
+#   Flow register resolution:      0.1 m³/h → convert to GPM with ×0.4403
+#   Pump data readable via:        FC3 (holding) or FC4 (read input)
+#
+# STILL REQUIRED — fill in the TODO addresses from the diagnostic scan:
+#   Run vr3452_diagnostic_v2.yaml first, observe the scan log,
+#   cross-reference non-zero values with what the pump is actually
+#   doing (check web interface for current head/flow), and map
+#   each address to its register name.
+#
+# WIRING:
+#   ESP32 GPIO17 (TX2) → MAX485 DI
+#   ESP32 GPIO16 (RX2) → MAX485 RO
+#   ESP32 GPIO4        → MAX485 DE + RE (bridged)
+#   MAX485 A           → Pump terminal A
+#   MAX485 B           → Pump terminal B
+#   MAX485 GND         → Pump terminal SH / GND
+#   MAX485 VCC         → ESP32 3.3V
+# ================================================================
+
+esphome:
+  name: vr3452
+  friendly_name: "VR3452"
+  project:
+    name: "taco.vr3452"
+    version: "2.0.0"
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  # Recommended: assign a static IP to avoid DHCP lookup on reconnect
+  # manual_ip:
+  #   static_ip: 192.168.1.202
+  #   gateway: 192.168.1.1
+  #   subnet: 255.255.255.0
+  ap:
+    ssid: "VR3452-Fallback"
+    password: "vr3452setup"
+
+captive_portal:
+
+logger:
+  level: INFO
+  baud_rate: 0
+
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+# ── UART ─────────────────────────────────────────────────────────
+# 19200 is the Taco 00e default. If comms fail, try stop_bits: 2.
+uart:
+  id: modbus_uart
+  tx_pin: GPIO17
+  rx_pin: GPIO16
+  baud_rate: 19200
+  data_bits: 8
+  parity: NONE
+  stop_bits: 1
+
+modbus:
+  id: modbus_bus
+  uart_id: modbus_uart
+  flow_control_pin: GPIO4
+
+# ── Modbus controller ────────────────────────────────────────────
+# address: 0xF5 = 245 — confirmed Taco 00e default
+# Change only if you altered the pump's Modbus address via its web
+# interface (Network → Modbus Address). Check the web interface to
+# confirm what address your specific pump is set to.
+modbus_controller:
+  - id: vr3452_pump
+    address: 0xF5
+    modbus_id: modbus_bus
+    setup_priority: -10
+    update_interval: 30s
+
+# ── Sensors ──────────────────────────────────────────────────────
+#
+# For each sensor, fill in the address from your diagnostic scan.
+# register_type: "read" → FC4 (input registers, read-only)
+#                "holding" → FC3 (holding registers, read/write)
+# Both FC3 and FC4 are valid for pump data registers per the manual.
+#
+# UNIT CONVERSIONS (confirmed from manual):
+#   Head:  stored as integer × 0.01 m → multiply by 0.03281 to get ft
+#          example: raw=400 → 4.00 m × 3.281 = 13.1 ft
+#   Flow:  stored as integer × 0.1 m³/h → multiply by 0.4403 to get GPM
+#          example: raw=19 → 1.9 m³/h × 4.403 = 8.4 GPM
+
+sensor:
+
+  # Differential head (pressure) ─────────────────────────────────
+  - platform: modbus_controller
+    modbus_controller_id: vr3452_pump
+    name: "VR3452 head"
+    id: vr3452_head
+    register_type: read     # change to "holding" if scan shows it there
+    address: 0xTODO         # replace with register address from diagnostic scan
+    value_type: U_WORD
+    unit_of_measurement: "ft"
+    icon: "mdi:gauge"
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.03281   # 0.01 m/count × 3.281 ft/m = 0.03281 ft/count
+
+  # Flow rate ─────────────────────────────────────────────────────
+  - platform: modbus_controller
+    modbus_controller_id: vr3452_pump
+    name: "VR3452 flow rate"
+    id: vr3452_flow_rate
+    register_type: read
+    address: 0xTODO
+    value_type: U_WORD
+    unit_of_measurement: "GPM"
+    icon: "mdi:water-flow"
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.4403    # 0.1 m³/h per count × 4.403 GPM/(m³/h) = 0.4403
+
+  # Power ─────────────────────────────────────────────────────────
+  # The manual confirms power is readable; resolution/units TBD from scan.
+  # Most ECM pump controllers store power in tenths of watts (multiply 0.1)
+  # or whole watts (no scaling). Verify against pump's web interface.
+  - platform: modbus_controller
+    modbus_controller_id: vr3452_pump
+    name: "VR3452 power"
+    id: vr3452_power
+    register_type: read
+    address: 0xTODO
+    value_type: U_WORD
+    unit_of_measurement: "W"
+    device_class: power
+    state_class: measurement
+    accuracy_decimals: 0
+    # filters:
+    #   - multiply: 0.1     # uncomment if stored as tenths of watts
+
+  # Motor speed ───────────────────────────────────────────────────
+  - platform: modbus_controller
+    modbus_controller_id: vr3452_pump
+    name: "VR3452 RPM"
+    id: vr3452_rpm
+    register_type: read
+    address: 0xTODO
+    value_type: U_WORD
+    unit_of_measurement: "RPM"
+    icon: "mdi:rotate-right"
+    state_class: measurement
+    accuracy_decimals: 0
+
+  # Temperature ───────────────────────────────────────────────────
+  # Fluid or motor temperature. Some firmware stores in tenths of °C.
+  # Verify raw value against pump web interface, then apply filters.
+  - platform: modbus_controller
+    modbus_controller_id: vr3452_pump
+    name: "VR3452 temperature"
+    id: vr3452_temp
+    register_type: read
+    address: 0xTODO
+    value_type: U_WORD
+    unit_of_measurement: "°F"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    # Uncomment the correct conversion based on what the raw value shows:
+    # If stored as tenths of °C:
+    # filters:
+    #   - lambda: return x * 0.1 * 9.0/5.0 + 32.0;
+    # If stored as whole °C:
+    # filters:
+    #   - lambda: return x * 9.0/5.0 + 32.0;
+    # If already in °F:
+    # (no filter needed)
+
+  # WiFi signal ───────────────────────────────────────────────────
+  - platform: wifi_signal
+    name: "VR3452 WiFi signal"
+    update_interval: 60s
+    entity_category: diagnostic
+
+# ── Binary sensors ───────────────────────────────────────────────
+
+binary_sensor:
+
+  # Rotation status from StatusReg bit 6 ─────────────────────────
+  # The manual confirms: StatusReg b6 = 1 means pump is rotating.
+  # Address of StatusReg is in the Pump Status register block
+  # (confirmed readable via FC3/FC4). Get address from diagnostic scan.
+  #
+  # ESPHome doesn't natively support bit-field reading from modbus_controller
+  # binary_sensor, so we use a template derived from power instead.
+  # If you want the actual StatusReg b6, use a modbus_controller sensor
+  # with a lambda filter that checks bit 6 of the raw value.
+
+  - platform: template
+    name: "VR3452 running"
+    id: vr3452_running
+    device_class: running
+    lambda: |-
+      if (id(vr3452_power).has_state()) {
+        return id(vr3452_power).state > 5.0;
+      }
+      return {};
+
+  - platform: status
+    name: "VR3452 online"
+    entity_category: diagnostic
