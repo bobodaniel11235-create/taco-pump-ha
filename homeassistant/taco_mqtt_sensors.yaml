@@ -1,0 +1,91 @@
+# ================================================================
+# Taco VR25H-F — MQTT sensor definitions
+# ================================================================
+#
+# Add the contents of this file to your configuration.yaml under
+# the top-level "mqtt:" key.
+#
+# If you already have an "mqtt:" section, just paste the
+# "sensor:" and "binary_sensor:" blocks inside it.
+#
+# After editing configuration.yaml:
+#   Developer Tools → YAML → Check Configuration → Restart HA
+#
+# ================================================================
+
+mqtt:
+
+  sensor:
+
+    - name: "VR25H-F power"
+      unique_id: vr25h_power
+      state_topic: "taco/vr25h/power"
+      unit_of_measurement: "W"
+      device_class: power
+      state_class: measurement
+      availability_topic: "taco/vr25h/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+
+    - name: "VR25H-F flow rate"
+      unique_id: vr25h_flow_rate
+      state_topic: "taco/vr25h/flow_rate"
+      unit_of_measurement: "GPM"
+      icon: mdi:water-flow
+      state_class: measurement
+      availability_topic: "taco/vr25h/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+
+    - name: "VR25H-F RPM"
+      unique_id: vr25h_rpm
+      state_topic: "taco/vr25h/rpm"
+      unit_of_measurement: "RPM"
+      icon: mdi:rotate-right
+      state_class: measurement
+      availability_topic: "taco/vr25h/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+
+    - name: "VR25H-F motor temp"
+      unique_id: vr25h_motor_temp
+      state_topic: "taco/vr25h/motor_temp"
+      unit_of_measurement: "°F"
+      device_class: temperature
+      state_class: measurement
+      availability_topic: "taco/vr25h/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+
+    - name: "VR25H-F head"
+      unique_id: vr25h_head
+      state_topic: "taco/vr25h/head"
+      unit_of_measurement: "ft"
+      icon: mdi:gauge
+      state_class: measurement
+      availability_topic: "taco/vr25h/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+
+    # Optional — only published if the pump exposes these fields
+    - name: "VR25H-F current"
+      unique_id: vr25h_current
+      state_topic: "taco/vr25h/current"
+      unit_of_measurement: "A"
+      device_class: current
+      state_class: measurement
+      availability_topic: "taco/vr25h/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
+
+  binary_sensor:
+
+    - name: "VR25H-F running"
+      unique_id: vr25h_running
+      state_topic: "taco/vr25h/running"
+      payload_on: "true"
+      payload_off: "false"
+      device_class: running
+      availability_topic: "taco/vr25h/availability"
+      payload_available: "online"
+      payload_not_available: "offline"
