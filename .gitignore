@@ -1,0 +1,12 @@
+# Never commit secrets or credentials
+esphome/secrets.yaml
+homeassistant/secrets.yaml
+*.token
+*.key
+
+# Editor and OS noise
+.DS_Store
+*.swp
+*~
+__pycache__/
+*.pyc
