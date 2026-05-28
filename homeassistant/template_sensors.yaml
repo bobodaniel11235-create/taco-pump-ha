@@ -1,0 +1,75 @@
+# ================================================================
+# 0034e Plus template sensors
+# ================================================================
+# Add this to configuration.yaml, then:
+#   Developer Tools → YAML → Check Configuration → Restart HA
+#
+# Assumes entity ID for Shelly EM power sensor is:
+#   sensor.shellyem_0034e_power
+#
+# If your entity ID is different (check Settings → Entities),
+# update the states() calls below to match.
+# ================================================================
+
+template:
+
+  # ── 0034e Plus running status ──────────────────────────────────
+  # Derived from power draw. Threshold of 5W filters out:
+  #   - Shelly EM's own measurement noise (~0.1-0.5W)
+  #   - Transformer magnetizing current at rest
+  #   - Any standby draw from the pump motor controller
+  #
+  # The Taco 0034e Plus draws ~8W minimum at lowest speed setting.
+  # 5W gives a comfortable margin below minimum operating power.
+  # If you get false "running" readings with pump off, raise to 8W.
+  # If pump shows "off" when clearly running at minimum speed, lower to 3W.
+
+  - binary_sensor:
+      - name: "0034e Plus running"
+        unique_id: pump_0034e_running
+        device_class: running
+        availability: >
+          {{ states('sensor.shellyem_0034e_power') not in ['unavailable', 'unknown', 'none'] }}
+        state: >
+          {{ states('sensor.shellyem_0034e_power') | float(0) > 5 }}
+
+  # ── Total system pump power ─────────────────────────────────────
+  # Sum of all three pumps. Gracefully handles any single pump
+  # being unavailable — uses 0 for unavailable sensors rather
+  # than returning 'unknown' for the whole sum.
+  #
+  # Requires the VR25H-F and VR3452 sensors to be set up first.
+  # If those aren't live yet, comment out their lines and add
+  # them back once those integrations are working.
+
+  - sensor:
+      - name: "Total pump power"
+        unique_id: total_pump_power
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        availability: >
+          {{ states('sensor.shellyem_0034e_power') not in ['unavailable', 'unknown', 'none'] }}
+        state: >
+          {{ (states('sensor.vr25h_power')          | float(0))
+           + (states('sensor.vr3452_power')         | float(0))
+           + (states('sensor.shellyem_0034e_power') | float(0))
+             | round(0) }}
+
+  # ── 0034e Plus daily energy (computed from power sensor) ───────
+  # HA's Riemann sum integration converts instantaneous watts into
+  # kWh. Useful for tracking daily/monthly pump energy cost.
+  # This is a separate sensor type — add it at the top level
+  # alongside the "template:" block above, not nested inside it.
+  #
+  # Uncomment and add to configuration.yaml as a separate block:
+  #
+  # sensor:
+  #   - platform: integration
+  #     source: sensor.shellyem_0034e_power
+  #     name: "0034e Plus energy"
+  #     unique_id: pump_0034e_energy
+  #     unit_prefix: k
+  #     unit_time: h
+  #     round: 3
+  #     method: left
