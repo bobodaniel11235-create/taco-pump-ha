@@ -1,0 +1,223 @@
+# ================================================================
+# Taco Pump Monitoring — Lovelace Dashboard
+# ================================================================
+#
+# Paste into:  Dashboard → ⋮ → Edit → Raw configuration editor
+#
+# ── ENTITY ID REFERENCE ────────────────────────────────────────
+#
+# VR25H-F  (AppDaemon polling /tbl.htm → MQTT publish)
+#   sensor.vr25h_power          W      topic: taco/vr25h/power
+#   sensor.vr25h_flow_rate      GPM    topic: taco/vr25h/flow_rate
+#   sensor.vr25h_rpm                   topic: taco/vr25h/rpm
+#   sensor.vr25h_motor_temp     °F     topic: taco/vr25h/motor_temp
+#   binary_sensor.vr25h_running        topic: taco/vr25h/running
+#
+# VR3452   (ESP32 ESPHome — device name: vr3452)
+#   sensor.vr3452_power         W
+#   sensor.vr3452_flow_rate     GPM
+#   sensor.vr3452_rpm
+#   sensor.vr3452_motor_temp    °F
+#   binary_sensor.vr3452_running
+#
+# 0034e Plus  (Shelly EM)
+#   sensor.shellyem_0034e_power     W
+#   sensor.shellyem_0034e_current   A
+#   sensor.shellyem_0034e_voltage   V
+#   binary_sensor.pump_0034e_running   ← template sensor (see below)
+#
+# ── REQUIRED: add to configuration.yaml ────────────────────────
+#
+# template:
+#   - sensor:
+#       - name: "Total pump power"
+#         unique_id: total_pump_power
+#         unit_of_measurement: W
+#         device_class: power
+#         state_class: measurement
+#         state: >
+#           {{ (states('sensor.vr25h_power')            | float(0))
+#            + (states('sensor.vr3452_power')           | float(0))
+#            + (states('sensor.shellyem_0034e_power')   | float(0)) }}
+#
+#   - binary_sensor:
+#       - name: "Pump 0034e running"
+#         unique_id: pump_0034e_running
+#         device_class: running
+#         state: >
+#           {{ states('sensor.shellyem_0034e_power') | float(0) > 5 }}
+#
+# ── OPTIONAL: MQTT sensor definitions (configuration.yaml) ─────
+#
+# mqtt:
+#   sensor:
+#     - name: "VR25H-F power"
+#       unique_id: vr25h_power
+#       state_topic: taco/vr25h/power
+#       unit_of_measurement: W
+#       device_class: power
+#       state_class: measurement
+#       availability_topic: taco/vr25h/availability
+#
+#     - name: "VR25H-F flow rate"
+#       unique_id: vr25h_flow_rate
+#       state_topic: taco/vr25h/flow_rate
+#       unit_of_measurement: GPM
+#
+#     - name: "VR25H-F RPM"
+#       unique_id: vr25h_rpm
+#       state_topic: taco/vr25h/rpm
+#
+#     - name: "VR25H-F motor temp"
+#       unique_id: vr25h_motor_temp
+#       state_topic: taco/vr25h/motor_temp
+#       unit_of_measurement: °F
+#       device_class: temperature
+#
+#   binary_sensor:
+#     - name: "VR25H-F running"
+#       unique_id: vr25h_running
+#       state_topic: taco/vr25h/running
+#       payload_on: "true"
+#       payload_off: "false"
+#       device_class: running
+#       expire_after: 120
+#
+# ================================================================
+
+title: Pump Monitoring
+views:
+  - title: Pumps
+    path: pumps
+    icon: mdi:water-pump
+    badges: []
+    cards:
+
+      # ── 3-column pump grid ────────────────────────────────────
+      - type: grid
+        columns: 3
+        square: false
+        cards:
+
+          # ── VR25H-F ──────────────────────────────────────────
+          - type: vertical-stack
+            cards:
+              - type: tile
+                entity: binary_sensor.vr25h_running
+                name: VR25H-F
+                icon: mdi:water-pump
+                color: teal
+
+              - type: glance
+                show_name: true
+                show_icon: false
+                show_state: true
+                entities:
+                  - entity: sensor.vr25h_power
+                    name: Power (W)
+                  - entity: sensor.vr25h_flow_rate
+                    name: Flow (GPM)
+                  - entity: sensor.vr25h_rpm
+                    name: RPM
+                  - entity: sensor.vr25h_motor_temp
+                    name: Temp (°F)
+
+              - type: history-graph
+                entities:
+                  - entity: sensor.vr25h_power
+                    name: Power
+                hours_to_show: 24
+                refresh_interval: 60
+
+          # ── VR3452 ───────────────────────────────────────────
+          - type: vertical-stack
+            cards:
+              - type: tile
+                entity: binary_sensor.vr3452_running
+                name: VR3452
+                icon: mdi:water-pump
+                color: teal
+
+              - type: glance
+                show_name: true
+                show_icon: false
+                show_state: true
+                entities:
+                  - entity: sensor.vr3452_power
+                    name: Power (W)
+                  - entity: sensor.vr3452_flow_rate
+                    name: Flow (GPM)
+                  - entity: sensor.vr3452_rpm
+                    name: RPM
+                  - entity: sensor.vr3452_motor_temp
+                    name: Temp (°F)
+
+              - type: history-graph
+                entities:
+                  - entity: sensor.vr3452_power
+                    name: Power
+                hours_to_show: 24
+                refresh_interval: 60
+
+          # ── 0034e Plus ────────────────────────────────────────
+          - type: vertical-stack
+            cards:
+              - type: tile
+                entity: binary_sensor.pump_0034e_running
+                name: 0034e Plus
+                icon: mdi:water-pump
+                color: grey
+
+              - type: glance
+                show_name: true
+                show_icon: false
+                show_state: true
+                entities:
+                  - entity: sensor.shellyem_0034e_power
+                    name: Power (W)
+                  - entity: sensor.shellyem_0034e_current
+                    name: Current (A)
+                  - entity: sensor.shellyem_0034e_voltage
+                    name: Voltage (V)
+
+              - type: history-graph
+                entities:
+                  - entity: sensor.shellyem_0034e_power
+                    name: Power
+                hours_to_show: 24
+                refresh_interval: 60
+
+      # ── Combined system view ──────────────────────────────────
+      - type: horizontal-stack
+        cards:
+          - type: statistic
+            entity: sensor.total_pump_power
+            name: System power now
+            period:
+              calendar:
+                period: day
+            stat_type: mean
+
+          - type: statistic
+            entity: sensor.total_pump_power
+            name: Power today
+            period:
+              calendar:
+                period: day
+            stat_type: sum
+
+          - type: entity
+            entity: sensor.total_pump_power
+            name: Live total power
+
+      - type: history-graph
+        title: Combined pump power — last 24h
+        entities:
+          - entity: sensor.vr25h_power
+            name: VR25H-F
+          - entity: sensor.vr3452_power
+            name: VR3452
+          - entity: sensor.shellyem_0034e_power
+            name: 0034e Plus
+        hours_to_show: 24
+        refresh_interval: 60
