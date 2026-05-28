@@ -1,0 +1,496 @@
+# ================================================================
+# vr3452_diagnostic_v2.yaml
+# ================================================================
+# CORRECTED from v1 — two critical fixes based on Taco 00e manual:
+#
+#   address: 0xF5  (245) — confirmed Taco 00e default, NOT 1
+#   baud_rate: 19200   — confirmed Taco 00e default, NOT 9600
+#
+# PURPOSE: Discover actual register addresses for Head, Flow,
+# Power, RPM, and Temperature before deploying production config.
+#
+# WHAT TO EXPECT:
+#   Within 60s of boot, the log will show lines like:
+#     [I][scan] INPUT  reg 41 = 131   ← probably Head (1.31 m = 4.3 ft)
+#     [I][scan] INPUT  reg 42 = 82    ← probably Flow (8.2 m³/h)
+#   Cross-reference with Taco 302-393 manual section 18, pages 43-50.
+#
+# WIRING (reminder):
+#   ESP32 GPIO17 (TX2) → MAX485 DI
+#   ESP32 GPIO16 (RX2) → MAX485 RO
+#   ESP32 GPIO4        → MAX485 DE + RE (bridged together)
+#   MAX485 A           → Pump terminal A
+#   MAX485 B           → Pump terminal B
+#   MAX485 GND         → Pump terminal SH / GND
+#   MAX485 VCC         → ESP32 3.3V
+# ================================================================
+
+esphome:
+  name: vr3452
+  friendly_name: "VR3452 diagnostic v2"
+  on_boot:
+    priority: -100
+    then:
+      - logger.log:
+          level: INFO
+          format: "VR3452 diagnostic v2 — addr=245 baud=19200 — first scan in ~10s"
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "VR3452-Fallback"
+    password: "vr3452setup"
+
+captive_portal:
+
+logger:
+  level: DEBUG
+  baud_rate: 0
+
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+# ── UART ─────────────────────────────────────────────────────────
+# baud_rate: 19200 is the Taco 00e default (confirmed from manual)
+# If still no data, try stop_bits: 2
+uart:
+  id: modbus_uart
+  tx_pin: GPIO17
+  rx_pin: GPIO16
+  baud_rate: 19200
+  data_bits: 8
+  parity: NONE
+  stop_bits: 1
+
+modbus:
+  id: modbus_bus
+  uart_id: modbus_uart
+  flow_control_pin: GPIO4
+
+# ── Modbus controller ────────────────────────────────────────────
+# address: 0xF5 = 245 — Taco 00e default Modbus slave address
+# (Can be changed via pump web interface → Network → Modbus settings)
+modbus_controller:
+  - id: vr3452_pump
+    address: 0xF5
+    modbus_id: modbus_bus
+    setup_priority: -10
+    update_interval: 60s
+    on_online:
+      then:
+        - logger.log:
+            level: INFO
+            format: "Pump ONLINE at address 245 — scanning registers now"
+    on_offline:
+      then:
+        - logger.log:
+            level: WARN
+            format: "Pump OFFLINE — check wiring. A/B swap is the most common cause."
+
+sensor:
+
+  # ── Input registers (FC4), addresses 0-31 ──────────────────────
+  # Pump data registers described as read via FC3 and/or FC4.
+  # Scanning both register types to find where data lives.
+
+  - platform: modbus_controller
+    modbus_controller_id: vr3452_pump
+    name: "SC input 0"
+    register_type: read
+    address: 0x0000
+    value_type: U_WORD
+    entity_category: diagnostic
+    filters:
+      - lambda: |-
+          if (x != 0) ESP_LOGI("scan", "INPUT  reg  0 = %.0f", x);
+          return x;
+
+  - platform: modbus_controller
+    modbus_controller_id: vr3452_pump
+    name: "SC input 1"
+    register_type: read
+    address: 0x0001
+    value_type: U_WORD
+    entity_category: diagnostic
+    filters:
+      - lambda: |-
+          if (x != 0) ESP_LOGI("scan", "INPUT  reg  1 = %.0f", x);
+          return x;
+
+  - platform: modbus_controller
+    modbus_controller_id: vr3452_pump
+    name: "SC input 2"
+    register_type: read
+    address: 0x0002
+    value_type: U_WORD
+    entity_category: diagnostic
+    filters:
+      - lambda: |-
+          if (x != 0) ESP_LOGI("scan", "INPUT  reg  2 = %.0f", x);
+          return x;
+
+  - platform: modbus_controller
+    modbus_controller_id: vr3452_pump
+    name: "SC input 3"
+    register_type: read
+    address: 0x0003
+    value_type: U_WORD
+    entity_category: diagnostic
+    filters:
+      - lambda: |-
+          if (x != 0) ESP_LOGI("scan", "INPUT  reg  3 = %.0f", x);
+          return x;
+
+  - platform: modbus_controller
+    modbus_controller_id: vr3452_pump
+    name: "SC input 4"
+    register_type: read
+    address: 0x0004
+    value_type: U_WORD
+    entity_category: diagnostic
+    filters:
+      - lambda: |-
+          if (x != 0) ESP_LOGI("scan", "INPUT  reg  4 = %.0f", x);
+          return x;
+
+  - platform: modbus_controller
+    modbus_controller_id: vr3452_pump
+    name: "SC input 5"
+    register_type: read
+    address: 0x0005
+    value_type: U_WORD
+    entity_category: diagnostic
+    filters:
+      - lambda: |-
+          if (x != 0) ESP_LOGI("scan", "INPUT  reg  5 = %.0f", x);
+          return x;
+
+  - platform: modbus_controller
+    modbus_controller_id: vr3452_pump
+    name: "SC input 6"
+    register_type: read
+    address: 0x0006
+    value_type: U_WORD
+    entity_category: diagnostic
+    filters:
+      - lambda: |-
+          if (x != 0) ESP_LOGI("scan", "INPUT  reg  6 = %.0f", x);
+          return x;
+
+  - platform: modbus_controller
+    modbus_controller_id: vr3452_pump
+    name: "SC input 7"
+    register_type: read
+    address: 0x0007
+    value_type: U_WORD
+    entity_category: diagnostic
+    filters:
+      - lambda: |-
+          if (x != 0) ESP_LOGI("scan", "INPUT  reg  7 = %.0f", x);
+          return x;
+
+  - platform: modbus_controller
+    modbus_controller_id: vr3452_pump
+    name: "SC input 8"
+    register_type: read
+    address: 0x0008
+    value_type: U_WORD
+    entity_category: diagnostic
+    filters:
+      - lambda: |-
+          if (x != 0) ESP_LOGI("scan", "INPUT  reg  8 = %.0f", x);
+          return x;
+
+  - platform: modbus_controller
+    modbus_controller_id: vr3452_pump
+    name: "SC input 9"
+    register_type: read
+    address: 0x0009
+    value_type: U_WORD
+    entity_category: diagnostic
+    filters:
+      - lambda: |-
+          if (x != 0) ESP_LOGI("scan", "INPUT  reg  9 = %.0f", x);
+          return x;
+
+  - platform: modbus_controller
+    modbus_controller_id: vr3452_pump
+    name: "SC input 10"
+    register_type: read
+    address: 0x000A
+    value_type: U_WORD
+    entity_category: diagnostic
+    filters:
+      - lambda: |-
+          if (x != 0) ESP_LOGI("scan", "INPUT  reg 10 = %.0f", x);
+          return x;
+
+  - platform: modbus_controller
+    modbus_controller_id: vr3452_pump
+    name: "SC input 11"
+    register_type: read
+    address: 0x000B
+    value_type: U_WORD
+    entity_category: diagnostic
+    filters:
+      - lambda: |-
+          if (x != 0) ESP_LOGI("scan", "INPUT  reg 11 = %.0f", x);
+          return x;
+
+  - platform: modbus_controller
+    modbus_controller_id: vr3452_pump
+    name: "SC input 12"
+    register_type: read
+    address: 0x000C
+    value_type: U_WORD
+    entity_category: diagnostic
+    filters:
+      - lambda: |-
+          if (x != 0) ESP_LOGI("scan", "INPUT  reg 12 = %.0f", x);
+          return x;
+
+  - platform: modbus_controller
+    modbus_controller_id: vr3452_pump
+    name: "SC input 13"
+    register_type: read
+    address: 0x000D
+    value_type: U_WORD
+    entity_category: diagnostic
+    filters:
+      - lambda: |-
+          if (x != 0) ESP_LOGI("scan", "INPUT  reg 13 = %.0f", x);
+          return x;
+
+  - platform: modbus_controller
+    modbus_controller_id: vr3452_pump
+    name: "SC input 14"
+    register_type: read
+    address: 0x000E
+    value_type: U_WORD
+    entity_category: diagnostic
+    filters:
+      - lambda: |-
+          if (x != 0) ESP_LOGI("scan", "INPUT  reg 14 = %.0f", x);
+          return x;
+
+  - platform: modbus_controller
+    modbus_controller_id: vr3452_pump
+    name: "SC input 15"
+    register_type: read
+    address: 0x000F
+    value_type: U_WORD
+    entity_category: diagnostic
+    filters:
+      - lambda: |-
+          if (x != 0) ESP_LOGI("scan", "INPUT  reg 15 = %.0f", x);
+          return x;
+
+  - platform: modbus_controller
+    modbus_controller_id: vr3452_pump
+    name: "SC input 16"
+    register_type: read
+    address: 0x0010
+    value_type: U_WORD
+    entity_category: diagnostic
+    filters:
+      - lambda: |-
+          if (x != 0) ESP_LOGI("scan", "INPUT  reg 16 = %.0f", x);
+          return x;
+
+  - platform: modbus_controller
+    modbus_controller_id: vr3452_pump
+    name: "SC input 17"
+    register_type: read
+    address: 0x0011
+    value_type: U_WORD
+    entity_category: diagnostic
+    filters:
+      - lambda: |-
+          if (x != 0) ESP_LOGI("scan", "INPUT  reg 17 = %.0f", x);
+          return x;
+
+  - platform: modbus_controller
+    modbus_controller_id: vr3452_pump
+    name: "SC input 18"
+    register_type: read
+    address: 0x0012
+    value_type: U_WORD
+    entity_category: diagnostic
+    filters:
+      - lambda: |-
+          if (x != 0) ESP_LOGI("scan", "INPUT  reg 18 = %.0f", x);
+          return x;
+
+  - platform: modbus_controller
+    modbus_controller_id: vr3452_pump
+    name: "SC input 19"
+    register_type: read
+    address: 0x0013
+    value_type: U_WORD
+    entity_category: diagnostic
+    filters:
+      - lambda: |-
+          if (x != 0) ESP_LOGI("scan", "INPUT  reg 19 = %.0f", x);
+          return x;
+
+  - platform: modbus_controller
+    modbus_controller_id: vr3452_pump
+    name: "SC input 20"
+    register_type: read
+    address: 0x0014
+    value_type: U_WORD
+    entity_category: diagnostic
+    filters:
+      - lambda: |-
+          if (x != 0) ESP_LOGI("scan", "INPUT  reg 20 = %.0f", x);
+          return x;
+
+  # ── Holding registers (FC3), addresses 0-20 ────────────────────
+
+  - platform: modbus_controller
+    modbus_controller_id: vr3452_pump
+    name: "SC holding 0"
+    register_type: holding
+    address: 0x0000
+    value_type: U_WORD
+    entity_category: diagnostic
+    filters:
+      - lambda: |-
+          if (x != 0) ESP_LOGI("scan", "HOLDING reg  0 = %.0f", x);
+          return x;
+
+  - platform: modbus_controller
+    modbus_controller_id: vr3452_pump
+    name: "SC holding 1"
+    register_type: holding
+    address: 0x0001
+    value_type: U_WORD
+    entity_category: diagnostic
+    filters:
+      - lambda: |-
+          if (x != 0) ESP_LOGI("scan", "HOLDING reg  1 = %.0f", x);
+          return x;
+
+  - platform: modbus_controller
+    modbus_controller_id: vr3452_pump
+    name: "SC holding 2"
+    register_type: holding
+    address: 0x0002
+    value_type: U_WORD
+    entity_category: diagnostic
+    filters:
+      - lambda: |-
+          if (x != 0) ESP_LOGI("scan", "HOLDING reg  2 = %.0f", x);
+          return x;
+
+  - platform: modbus_controller
+    modbus_controller_id: vr3452_pump
+    name: "SC holding 3"
+    register_type: holding
+    address: 0x0003
+    value_type: U_WORD
+    entity_category: diagnostic
+    filters:
+      - lambda: |-
+          if (x != 0) ESP_LOGI("scan", "HOLDING reg  3 = %.0f", x);
+          return x;
+
+  - platform: modbus_controller
+    modbus_controller_id: vr3452_pump
+    name: "SC holding 4"
+    register_type: holding
+    address: 0x0004
+    value_type: U_WORD
+    entity_category: diagnostic
+    filters:
+      - lambda: |-
+          if (x != 0) ESP_LOGI("scan", "HOLDING reg  4 = %.0f", x);
+          return x;
+
+  - platform: modbus_controller
+    modbus_controller_id: vr3452_pump
+    name: "SC holding 5"
+    register_type: holding
+    address: 0x0005
+    value_type: U_WORD
+    entity_category: diagnostic
+    filters:
+      - lambda: |-
+          if (x != 0) ESP_LOGI("scan", "HOLDING reg  5 = %.0f", x);
+          return x;
+
+  - platform: modbus_controller
+    modbus_controller_id: vr3452_pump
+    name: "SC holding 6"
+    register_type: holding
+    address: 0x0006
+    value_type: U_WORD
+    entity_category: diagnostic
+    filters:
+      - lambda: |-
+          if (x != 0) ESP_LOGI("scan", "HOLDING reg  6 = %.0f", x);
+          return x;
+
+  - platform: modbus_controller
+    modbus_controller_id: vr3452_pump
+    name: "SC holding 7"
+    register_type: holding
+    address: 0x0007
+    value_type: U_WORD
+    entity_category: diagnostic
+    filters:
+      - lambda: |-
+          if (x != 0) ESP_LOGI("scan", "HOLDING reg  7 = %.0f", x);
+          return x;
+
+  - platform: modbus_controller
+    modbus_controller_id: vr3452_pump
+    name: "SC holding 8"
+    register_type: holding
+    address: 0x0008
+    value_type: U_WORD
+    entity_category: diagnostic
+    filters:
+      - lambda: |-
+          if (x != 0) ESP_LOGI("scan", "HOLDING reg  8 = %.0f", x);
+          return x;
+
+  - platform: modbus_controller
+    modbus_controller_id: vr3452_pump
+    name: "SC holding 9"
+    register_type: holding
+    address: 0x0009
+    value_type: U_WORD
+    entity_category: diagnostic
+    filters:
+      - lambda: |-
+          if (x != 0) ESP_LOGI("scan", "HOLDING reg  9 = %.0f", x);
+          return x;
+
+  - platform: modbus_controller
+    modbus_controller_id: vr3452_pump
+    name: "SC holding 10"
+    register_type: holding
+    address: 0x000A
+    value_type: U_WORD
+    entity_category: diagnostic
+    filters:
+      - lambda: |-
+          if (x != 0) ESP_LOGI("scan", "HOLDING reg 10 = %.0f", x);
+          return x;
+
+  - platform: wifi_signal
+    name: "VR3452 WiFi signal"
+    update_interval: 60s
+    entity_category: diagnostic
