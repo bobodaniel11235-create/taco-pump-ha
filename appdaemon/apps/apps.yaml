@@ -1,0 +1,12 @@
+# ================================================================
+# AppDaemon apps.yaml
+# Location: /config/appdaemon/apps/apps.yaml
+# ================================================================
+
+taco_vr25h_poller:
+  module: taco_pump_poller
+  class: TacoPumpPoller
+  pump_ip: "192.168.1.201"
+  pump_id: "vr25h"
+  poll_interval_s: 30
+  debug: false          # set true to dump raw HTML to AppDaemon log
